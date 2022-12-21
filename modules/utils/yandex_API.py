@@ -60,6 +60,11 @@ class YandexAPI:
 
     def voiceSynthesis(self, message, language):
 
+        if language=='en':
+            langCode='en-US'
+        elif language=='ru':
+            langCode='ru-RU'
+
         header = {'Authorization': 'Api-Key {}'.format(self.APIkey)}
         url = "https://tts.api.cloud.yandex.net/speech/v1/tts:synthesize"
 
@@ -67,7 +72,7 @@ class YandexAPI:
         body = {
                
                 "text": message,
-                "lang":  language,
+                "lang":  langCode,
 
             }
         

@@ -6,21 +6,11 @@ class IGT_Markup(object):
 
 #Markup for start message
     @staticmethod
-    def getWelcomeAdminMarkup():
+    def getShowAllWords(userId):
         
         markup = telebot.types.InlineKeyboardMarkup()
  
-        markup.row(telebot.types.InlineKeyboardButton("welcome", callback_data='welcome_admin_CB'))
+        markup.row(telebot.types.InlineKeyboardButton("Показать сохраненные слова", callback_data=f'show_all_cards_{userId}'))
         
-           
         return markup
     
-    @staticmethod
-    def getWelcomeUserMarkup():
-        
-        markup = telebot.types.InlineKeyboardMarkup()
- 
-        markup.row(telebot.types.InlineKeyboardButton("welcome", callback_data='welcome_user_CB'))
-        
-           
-        return markup

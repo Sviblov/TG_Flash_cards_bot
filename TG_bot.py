@@ -6,21 +6,22 @@ import os
 import telebot
 
 #importing handlers
-from modules.handlers.user import welcome_command_user, any_message_user, welcome_user_callback
+from modules.handlers.user import welcome_command_user, any_message_user, repeat_command_user,repeat_message_user, status_command_user,show_all_cards
 
 #DB connection and Markup setup
 
 from modules.utils.IGT_Mongo import Database
 from modules.utils.yandex_API import YandexAPI
 
+from modules.filters.isRepeatModeFilter import isRepeatModeFilter
 
 
 # creating bot
 
 if os.environ.get('DEBUG')=='1':
 
-    bot = telebot.TeleBot(os.environ.get('Nikita_bot_key'))
-    #bot = telebot.TeleBot(os.environ.get('BOT_KEY_DEV'))
+    #bot = telebot.TeleBot(os.environ.get('Nikita_bot_key'))
+    bot = telebot.TeleBot(os.environ.get('BOT_KEY_DEV'))
     #DB_name = 'Memory_Cards_Database'
     DB=Database(URL = os.environ.get('TRANSLATION_DB_STRING_DEV'), database ='Memory_Cards_Database')
     loggingLevel = logging.INFO
@@ -48,21 +49,20 @@ bot.yandexAPI=YandexAPI
 def registerHandlers():
      
     bot.register_message_handler(welcome_command_user, commands=['start'], pass_bot='True')
-    bot.register_message_handler(welcome_command_user, commands=['repeat'], pass_bot='True')
+    bot.register_message_handler(repeat_command_user, commands=['repeat'], pass_bot='True')
+    bot.register_message_handler(status_command_user, commands=['status'], pass_bot='True')
+    
+    bot.register_message_handler(repeat_message_user, func=lambda message: True, pass_bot='True', isRepeatModeUser='True')
     bot.register_message_handler(any_message_user, func=lambda message: True, pass_bot='True')
     
-
-    #bot.register_callback_query_handler(welcome_user_callback,func=lambda call: 'welcome_user_CB' in call.data, pass_bot=True)
-    
-    #bot.register_message_handler(all_messages_handler, func=lambda pollAnswer: True, pass_bot=True, isSubscribed=True)
-
+    bot.register_callback_query_handler(show_all_cards,func=lambda call: 'show_all_cards_' in call.data, pass_bot='True')
+   
 registerHandlers()
 
 
 
+bot.add_custom_filter(isRepeatModeFilter(bot))
 
-# sendTaskThread = Thread(target=setAnotherThread, args = (DBTaskScheduler, bottoken))
-# sendTaskThread.start()
         
 
 while True:
