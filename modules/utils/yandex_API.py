@@ -23,8 +23,7 @@ class YandexAPI:
         req = requests.post(POST, headers=header, json=body)
         data = req.json()
 
-        print(data)
-
+   
         langCode = data['languageCode']
         return langCode
     

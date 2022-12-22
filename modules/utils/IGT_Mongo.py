@@ -1,6 +1,6 @@
 #in this module connections to mondoDB is defined
 import json
-
+from bson.objectid import ObjectId
 
 import pymongo
 import jsonpickle
@@ -39,6 +39,7 @@ class Database:
         self.user_state= database['TG_User_State']
         self.standard_messages= database['TG_Standard_Messages']
         self.flash_cards=database['TG_Flash_Cards']
+        self.modules=database['TG_Modules']
         self.cards_to_repeat=database['TG_Cards_To_Repeat']
         cursor = self.standard_messages.find()
         self.standardMessages = cursor[0]
@@ -68,21 +69,54 @@ class Database:
         else:   
             pass
 
+    def getAllUserModules(self, userId):
+        filter_user = {'userid': userId}
+        
+        if self.modules.find(filter_user) is not None:
+            return self.modules.find(filter_user)
+        else:   
+            pass
+
+
+    def getAllUserModuleCards(self, userId, moduleId):
+        filter = {
+            'userid': userId,
+            'moduleId': ObjectId(moduleId)
+            }
+        
+        return self.flash_cards.find(filter)
+
+    
+    def getModuleNameById(self, moduleId):
+        filter = {
+            '_id': ObjectId(moduleId)
+            }
+        
+        return self.modules.find_one(filter)['module_name']
+
     def putFlashCard(self, userId, sourceLangCode, sourceVersion, targetVersion):
         
+        moduleFilter = {
+            'userid': userId,
+            'module_name': 'General'
+        }
+        generalModuleId = self.modules.find_one(moduleFilter)['_id']
+
         if sourceLangCode=='ru':
             flashCard={
                 'userid': userId,
                 'russian': sourceVersion,
-                'english': targetVersion
+                'english': targetVersion,
+                'moduleId': generalModuleId
             }
         else:
             flashCard={
                 'userid': userId,
                 'russian': targetVersion,
-                'english': sourceVersion
+                'english': sourceVersion,
+                'moduleId': generalModuleId
             }
-
+        
         filter=flashCard
         self.flash_cards.replace_one(filter, flashCard, upsert=True)
 
@@ -94,23 +128,62 @@ class Database:
         else:   
             pass
     
-    def setRepeatMode(self, userId):
+    def isRequestNewModuleNameMode(self, userId):
         filter_user = {'userid': userId}
 
-        allCards = self.getAllUserCards(userId)
+        if self.user_state.find_one(filter_user) is not None:
+            return self.user_state.find(filter_user)[0]['is_request_model_name_mode']
+        else:   
+            pass
+    
+    def createNewModule(self, userId, moduleName):
+        module = {
+                'userid': userId,
+                'module_name': moduleName,
+            }
+        self.modules.replace_one(module,module, upsert=True)
 
+
+    def setRepeatMode(self, userId):
+
+        filter_user = {
+            'userid': userId
+            }
         if self.user_state.find_one(filter_user) is not None:
             self.user_state.update_one(filter_user,{ "$set":{'is_repeat_mode': True}})    
         else:   
             pass
 
-        for card in allCards:
-            filter=card
-            self.cards_to_repeat.replace_one(filter, card, upsert=True)
+    def setModuleNameRequestMode(self, userId):
+
+        filter_user = {
+            'userid': userId
+            }
+        if self.user_state.find_one(filter_user) is not None:
+            self.user_state.update_one(filter_user,{ "$set":{'is_request_model_name_mode': True}})    
+        else:   
+            pass
+
+    def putCardToRepeat(self, card):
+        filter=card
+
+        self.cards_to_repeat.replace_one(filter, card, upsert=True)
+
     
     def getNumberOfCards(self, userId):
         filter_user = {'userid': userId}
         return self.flash_cards.count_documents(filter_user)
+    
+    def getNumberOfModules(self, userId):
+        filter_user = {'userid': userId}
+        return self.modules.count_documents(filter_user)
+    
+    def getNumberOfCardsInModule(self, userId, moduleId):
+        filter = {
+            'userid': userId,
+            'moduleId': ObjectId(moduleId)
+            }
+        return self.flash_cards.count_documents(filter)
     
     def getNextCardToRepeat(self, userId):
 
@@ -139,7 +212,32 @@ class Database:
                 'english': English
             }
         self.cards_to_repeat.delete_many(flashCard)
+
+    def deleteCard(self, cardId):
+        filter={
+                '_id': ObjectId(cardId)
+            }
+        self.flash_cards.delete_many(filter)
     
+    def deleteModule(self, moduleId, isGeneral):
+        filterCards={
+                'moduleId': ObjectId(moduleId)
+            }
+        self.flash_cards.delete_many(filterCards)
+        if isGeneral=='False':
+            filterModule={
+                    '_id': ObjectId(moduleId)
+                }
+            
+            self.modules.delete_many(filterModule)
+    
+    def getUserModules(self, userId):
+        filter={
+            'userid': userId
+        }
+
+        return self.modules.find(filter)
+
 #put User to default status
 #We have tables TG_Users and TG_User_State - in default status it has False for search flag and -1 in account
     def setUserToDefault(self, user):
@@ -150,10 +248,9 @@ class Database:
         if self.isExistingUser(user.id):
             self.users.replace_one({'id': user.id}, user_json, upsert=True)
             self.user_state.update_one(filter_user, { "$set":{'is_repeat_mode': False}})
+            self.user_state.update_one(filter_user, { "$set":{'is_request_model_name_mode': False}})
             self.user_state.update_one(filter_user, { "$set":{'current_card': []}})
             self.cards_to_repeat.delete_many(filter_user)
-
-          
 
         else:
             logging.info(f'Creating new user in DB userid: {user.id}')
@@ -163,10 +260,17 @@ class Database:
                 'userid': user.id,
                 'name': user.first_name,
                 'is_repeat_mode': False,
+                'is_request_model_name_mode': False,
                 'current_card': []
             }
 
+            defaultModule = {
+                'userid': user.id,
+                'module_name': 'General',
+            }
+
             self.user_state.insert_one(defaultUserInfo)
+            self.modules.replace_one(defaultModule,defaultModule, upsert=True)
 
 
     
