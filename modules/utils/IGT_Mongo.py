@@ -11,6 +11,8 @@ from datetime import datetime
 
 
 
+# в этом модуле определяется класс по взаимодействию с базой данных MongoDB
+
 
 class noMessagesToSend(Exception):
     def __str__(self):
@@ -94,6 +96,13 @@ class Database:
         
         return self.modules.find_one(filter)['module_name']
 
+    def moveCard(self, cardId, moduleId):
+        filter = {
+            '_id': ObjectId(cardId)
+            }
+        
+        self.flash_cards.update_one(filter,{ "$set":{'moduleId': ObjectId(moduleId)}})
+
     def putFlashCard(self, userId, sourceLangCode, sourceVersion, targetVersion):
         
         moduleFilter = {
@@ -173,6 +182,12 @@ class Database:
     def getNumberOfCards(self, userId):
         filter_user = {'userid': userId}
         return self.flash_cards.count_documents(filter_user)
+
+    def getCard(self, cardId):
+        filter= {
+            '_id': ObjectId(cardId)
+            }
+        return self.flash_cards.find_one(filter)
     
     def getNumberOfModules(self, userId):
         filter_user = {'userid': userId}
@@ -274,7 +289,7 @@ class Database:
 
 
     
-# # for testing
+# # область для тестирования, если нужно проверить как работает тот или иной запрос к БД без запуска бота
 if __name__ == "__main__":
 
 

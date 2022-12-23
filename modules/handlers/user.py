@@ -70,7 +70,7 @@ def any_message_user(message: Message, bot: TeleBot):
     logging.info(f"Sent message: username: {userName}, userId: {userId}, message: {replyText}")
 
 
-
+#обработка команды /start
 def welcome_command_user(message: Message, bot: TeleBot):
    
     DB: Database = bot.db_connection
@@ -82,6 +82,8 @@ def welcome_command_user(message: Message, bot: TeleBot):
     replyMessage = bot.send_message(message.chat.id, replyText, parse_mode='html', disable_web_page_preview=True)
     logging.info(f"Start message: username: {message.from_user.first_name}, userId: {message.from_user.id}, message: {message.text}")
 
+
+#обработка команды /repeat
 def repeat_command_user(message: Message, bot: TeleBot):
     DB: Database = bot.db_connection
 
@@ -96,7 +98,8 @@ def repeat_command_user(message: Message, bot: TeleBot):
     logging.info(f"Move to repeat mode username: {message.from_user.first_name}, userId: {message.from_user.id}")
 
       
-
+#обработка callBack выбранного модуля в режиме повторения
+#Перенос карточек для повторения в таблицу TG_Cards_To_Repeat
 def repeat_module_selected(callBack: CallbackQuery, bot: TeleBot):
     
     DB: Database = bot.db_connection
@@ -112,6 +115,7 @@ def repeat_module_selected(callBack: CallbackQuery, bot: TeleBot):
 
     sendNextCardToRepeat(callBack.from_user, callBack.message.chat.id , bot)  
 
+#обработка команды /status отправленной пользователем
 def status_command_user(message: Message, bot: TeleBot):
 
     DB: Database = bot.db_connection
@@ -129,6 +133,11 @@ def status_command_user(message: Message, bot: TeleBot):
     replyMessage = bot.send_message(message.chat.id, replyText, parse_mode='html', reply_markup=replyMarkup, disable_web_page_preview=True)
     logging.info(f"Request for status: username: {message.from_user.first_name}, userId: {message.from_user.id}, message: {message.text}")
 
+
+#обработка сообщения, отправленного в режиме Repeat
+#то есть сравнение с тем карточкой, которую пользователь сейчас учит и если правильно, то отправка следующей карточки
+#если не правильно, то ничего не делать
+#если правильно и все карточки выучены - то переход в режим обучения
 def repeat_message_user(message: Message, bot: TeleBot):
     DB: Database = bot.db_connection
 
@@ -143,11 +152,11 @@ def repeat_message_user(message: Message, bot: TeleBot):
     replyMessage = bot.send_message(message.chat.id, replyText, parse_mode='html', disable_web_page_preview=True)
     sendNextCardToRepeat(message.from_user, message.chat.id,  bot)
 
-
+#обработка сообщения с именем нового модуля
 def set_new_module_name(message: Message, bot: TeleBot):
     DB: Database = bot.db_connection
 
-#TODO: check that module name is fine
+#TODO: добавить проверку, что введенное сообщение не содержит специальных символов
     DB.createNewModule(message.from_user.id, message.text)
 
     replyText=DB.standardMessages['newModuleCreated'].format(message.text)
@@ -156,6 +165,7 @@ def set_new_module_name(message: Message, bot: TeleBot):
     DB.setUserToDefault(message.from_user)
 
 
+#отправка пользователю следующей карточки из очереди. Если в очереди нет карточек, то отправка сообщения что все карточки выучены и переход в режим обучения 
 def sendNextCardToRepeat(user, chatId, bot:TeleBot):
     DB: Database = bot.db_connection
 
@@ -173,6 +183,7 @@ def sendNextCardToRepeat(user, chatId, bot:TeleBot):
         DB.setUserToDefault(user)
 
 
+#обработка callBack при нажатии на кнопку "показать все модули"
 def show_all_modules(callBack: CallbackQuery, bot: TeleBot):
    
     DB: Database = bot.db_connection
@@ -189,31 +200,68 @@ def show_all_modules(callBack: CallbackQuery, bot: TeleBot):
             isGeneral=True
 
         replyText=DB.standardMessages['moduleInfo'].format(moduleName, numberOfCardsInModule)
-        replyMarkup=IGT_Markup.deleteModule(callBack.from_user.id, moduleId, isGeneral)
+        replyMarkup=IGT_Markup.moduleInfoMarkup(callBack.from_user.id, moduleId, isGeneral)
         replyMessage = bot.send_message(callBack.message.chat.id, replyText, reply_markup=replyMarkup, parse_mode='html', disable_web_page_preview=True)
     
 
     logging.info(f"Showing all words: username: {callBack.from_user.first_name}, userId: {callBack.from_user.id}, message: {callBack.data}")
 
+#Обработка callBack при изменении модуля - перемещение карточки после того, как пользователь выбрал новый модуль
+def move_new_module_selected(callBack: CallbackQuery, bot:TeleBot):
+    DB: Database = bot.db_connection
+    cardId=callBack.data.split('_')[3]
+    newModuleId=callBack.data.split('_')[4]
 
+    newModuleName=DB.getModuleNameById(newModuleId)
+
+    DB.moveCard(cardId, newModuleId)
+
+    replyText = DB.standardMessages['moveCardConfirmation'].format(newModuleName)
+    replyMessage = bot.send_message(callBack.message.chat.id, replyText, parse_mode='html', disable_web_page_preview=True)
+    
+
+
+#обработка Callback изменения модуля карточки - запрос в какой модуль перенести карточку
+def move_card_request(callBack: CallbackQuery, bot:TeleBot):
+    DB: Database = bot.db_connection
+
+    cardId=callBack.data.split('_')[3]
+    currentModuleId=DB.getCard(cardId)['moduleId']
+    currentModuleName=DB.getModuleNameById(currentModuleId)
+    userModules=DB.getUserModules(callBack.from_user.id)
+
+    replyText = DB.standardMessages['cardModuleChange'].format(currentModuleName)
+    replyMarkup=IGT_Markup.cardChangeMarkup(cardId, currentModuleId, userModules)
+    replyMessage = bot.send_message(callBack.message.chat.id, replyText, reply_markup=replyMarkup, parse_mode='html', disable_web_page_preview=True)
+    
+
+#обработка CallBack - показ всех карточек в выбранном модуле
 def show_all_module_cards(callBack: CallbackQuery, bot: TeleBot):
     DB: Database = bot.db_connection
 
     moduleId=callBack.data.split('_')[5]
 
     moduleCards = DB.getAllUserModuleCards(callBack.from_user.id, moduleId)
-
+    
+    countCards=0
+    
     for card in moduleCards:
+        countCards=countCards + 1
         cardModule = card['moduleId']
         moduleName = DB.getModuleNameById(cardModule)
-   
-        
+    
+            
         replyText=DB.standardMessages['cardInfo'].format('Русский', card['russian'],'Английский', card['english'],moduleName )
         replyMarkup=IGT_Markup.cardInfo(card['userid'], card['_id'])
         replyMessage = bot.send_message(callBack.message.chat.id, replyText, reply_markup=replyMarkup, parse_mode='html', disable_web_page_preview=True)
-    
+   
+    if countCards==0:
 
+        replyText=DB.standardMessages['emptyModule']
+        replyMessage = bot.send_message(callBack.message.chat.id, replyText, parse_mode='html', disable_web_page_preview=True)
+   
 
+#обработка callBack - показ всех карточек
 def show_all_cards(callBack: CallbackQuery, bot: TeleBot):
    
     DB: Database = bot.db_connection
@@ -232,7 +280,7 @@ def show_all_cards(callBack: CallbackQuery, bot: TeleBot):
     logging.info(f"Showing all words: username: {callBack.from_user.first_name}, userId: {callBack.from_user.id}, message: {callBack.data}")
 
 
-
+#обработка CallBack - удаление карточки
 def delete_card(callBack: CallbackQuery, bot: TeleBot):
 
     DB: Database = bot.db_connection
@@ -240,7 +288,7 @@ def delete_card(callBack: CallbackQuery, bot: TeleBot):
     replyText=DB.standardMessages['cardDeleteConfirmation']
     replyMessage = bot.send_message(callBack.message.chat.id, replyText, parse_mode='html', disable_web_page_preview=True)
 
-
+#обработка CallBack - удаление модуля. В случае, если это модуль General то из него просто удалятся все слова
 def delete_module(callBack: CallbackQuery, bot: TeleBot):
 
     DB: Database = bot.db_connection
@@ -249,6 +297,8 @@ def delete_module(callBack: CallbackQuery, bot: TeleBot):
     replyText=DB.standardMessages['moduleDeleteConfirmation']
     replyMessage = bot.send_message(callBack.message.chat.id, replyText, parse_mode='html', disable_web_page_preview=True)
     
+
+#обработка callBack - добавление нового модуля
 def add_new_module(callBack: CallbackQuery, bot: TeleBot):
 
     DB: Database = bot.db_connection

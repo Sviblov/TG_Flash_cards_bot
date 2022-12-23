@@ -9,6 +9,7 @@ class YandexAPI:
 
         self.APIkey=APIkey
 
+#определение языка присланного сообщения
     def detectLanguage(self, message):
         header = {'Authorization': 'Api-Key {}'.format(self.APIkey)}
         POST = "https://translate.api.cloud.yandex.net/translate/v2/detect"
@@ -26,7 +27,9 @@ class YandexAPI:
    
         langCode = data['languageCode']
         return langCode
-    
+
+
+#перевод сообщения
     def translate(self, message, targetLanguage):
         header = {'Authorization': 'Api-Key {}'.format(self.APIkey)}
         POST = "https://translate.api.cloud.yandex.net/translate/v2/translate"
@@ -44,7 +47,7 @@ class YandexAPI:
         translation = data['translations'][0]['text']
         return translation
 
-    
+#проверка на опечатки
     def spellCheck(self, message, language):
 
         
@@ -56,7 +59,7 @@ class YandexAPI:
 
         return(data)
     
-
+#синтез голосового сообщения
     def voiceSynthesis(self, message, language):
 
         if language=='en':
